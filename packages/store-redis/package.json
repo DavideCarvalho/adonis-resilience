@@ -1,0 +1,62 @@
+{
+  "name": "@agora/resilience-store-redis",
+  "version": "0.1.0",
+  "description": "Redis-backed distributed circuit-breaker ResilienceStore for @agora/resilience. Part of the Agora ecosystem.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavideCarvalho/adonis-resilience.git",
+    "directory": "packages/store-redis"
+  },
+  "author": "Davi Carvalho <davi@goflip.ai>",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": ["dist/", "README.md", "CHANGELOG.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agora/resilience": "workspace:^"
+  },
+  "peerDependencies": {
+    "@adonisjs/core": "^6.12.0",
+    "@adonisjs/redis": "^9.0.0",
+    "ioredis": "^5.0.0"
+  },
+  "devDependencies": {
+    "@adonisjs/core": "^6.17.0",
+    "@adonisjs/redis": "^9.0.0",
+    "@agora/resilience": "workspace:*",
+    "@types/node": "^20.0.0",
+    "ioredis": "^5.0.0",
+    "ioredis-mock": "^8.9.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "keywords": [
+    "adonisjs",
+    "adonis",
+    "redis",
+    "ioredis",
+    "resilience",
+    "circuit-breaker",
+    "store",
+    "distributed",
+    "agora"
+  ]
+}
