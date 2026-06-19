@@ -1,0 +1,64 @@
+{
+  "name": "@agora/resilience",
+  "version": "0.1.0",
+  "description": "Resilience policies for AdonisJS — timeout, retry, circuit breaker, and ordered failover, with pluggable circuit stores. Part of the Agora ecosystem.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavideCarvalho/adonis-resilience.git",
+    "directory": "packages/core"
+  },
+  "author": "Davi Carvalho <davi@goflip.ai>",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    },
+    "./resilience_provider": {
+      "types": "./dist/providers/resilience_provider.d.ts",
+      "import": "./dist/providers/resilience_provider.js",
+      "default": "./dist/providers/resilience_provider.js"
+    },
+    "./configure": {
+      "types": "./dist/configure.d.ts",
+      "import": "./dist/configure.js",
+      "default": "./dist/configure.js"
+    }
+  },
+  "files": ["dist/", "README.md", "CHANGELOG.md"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json && pnpm run copy:stubs",
+    "copy:stubs": "mkdir -p dist/stubs/config && cp stubs/config/resilience.stub dist/stubs/config/resilience.stub",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "@adonisjs/core": "^6.12.0"
+  },
+  "devDependencies": {
+    "@adonisjs/assembler": "^7.8.0",
+    "@adonisjs/core": "^6.17.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "keywords": [
+    "adonisjs",
+    "adonis",
+    "resilience",
+    "circuit-breaker",
+    "retry",
+    "timeout",
+    "failover",
+    "agora"
+  ]
+}

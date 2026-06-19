@@ -1,0 +1,35 @@
+/** Keep in sync with this package's `version` in package.json. */
+export const VERSION = '0.1.0';
+
+export type { Clock } from './clock.js';
+export { FakeClock, SystemClock, systemClock } from './clock.js';
+export { BrokenCircuitError, TimeoutError } from './errors.js';
+export type { EventSink, ResilienceEvent, ResilienceEventType } from './events.js';
+export { combineSinks } from './events.js';
+export { eventEmitterSink, resilienceEventName } from './integration/event-emitter.js';
+export type { EventEmitterLike } from './integration/event-emitter.js';
+export type { Operation, Policy, PolicyContext } from './policy.js';
+export { rootContext } from './policy.js';
+export { timeout } from './policies/timeout.js';
+export { type Backoff, exponential, retry } from './policies/retry.js';
+export { wrap } from './policies/wrap.js';
+export { type CircuitBreakerOptions, circuitBreaker } from './policies/circuit-breaker.js';
+export { type FailoverOptions, failover } from './policies/failover.js';
+export type { ResilienceStore } from './breaker/store.js';
+export type { Admission, BreakerConfig, CircuitSnapshot, CircuitStatus } from './breaker/types.js';
+export { InMemoryResilienceStore } from './breaker/in-memory.store.js';
+export { diagnosticsSink } from './integration/diagnostics.js';
+export { tenantSuffix } from './integration/context.js';
+export { INITIAL_CIRCUIT_STATE, computeAdmit, computeRecord } from './breaker/state-machine.js';
+export type { CircuitState } from './breaker/state-machine.js';
+export { CIRCUITS_DDL, SqlResilienceStore } from './breaker/sql.js';
+export type {
+  SqlDriver,
+  SqlPlaceholderStyle,
+  SqlResilienceStoreOptions,
+  SqlTx,
+} from './breaker/sql.js';
+export { ResilienceService } from './resilience_service.js';
+export type { ResilienceServiceOptions } from './resilience_service.js';
+export { defineConfig } from './define_config.js';
+export type { ResilienceConfig } from './define_config.js';

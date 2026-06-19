@@ -1,0 +1,18 @@
+{{{
+  exports({ to: app.configPath('resilience.ts') })
+}}}
+import { defineConfig, wrap, timeout, retry, exponential } from '@agora/resilience'
+
+export default defineConfig({
+  /**
+   * Emit diagnostics events on `agora:resilience:*`. Default true.
+   */
+  // emit: true,
+
+  /**
+   * Named, reusable policies resolvable via `resilience.execute('db', op)`.
+   */
+  // policies: {
+  //   db: () => wrap(timeout(2000), retry({ attempts: 3, backoff: exponential(100) })),
+  // },
+})
