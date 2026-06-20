@@ -47,8 +47,14 @@ function detectDialect(db: LucidDatabase): string | undefined {
 
 /**
  * Lucid `rawQuery` returns the underlying driver result. For SELECTs on the sqlite/mysql dialects
- * that is the row array directly; some dialects (and writes) return a richer object. Normalise to
- * a plain row array so the agnostic {@link SqlResilienceStore} always receives `unknown[]`.
+ * that is the row array directly; Postgres returns a `{ rows }` object. Normalise to a plain row
+ * array so the agnostic {@link SqlResilienceStore} always receives `unknown[]`.
+ *
+ * Only the breaker's SELECTs flow through here (writes discard their result), and they match a single
+ * circuit by primary key — so 0 or 1 rows. An unrecognised driver shape therefore degrades to `[]`,
+ * which the store reads as "no row yet" → a fresh closed circuit. That is the intended fail-OPEN: a
+ * storage-read quirk lets traffic through rather than wedging the breaker shut. The DDL pins the four
+ * columns, so an unexpected shape here means a driver change, not a schema mismatch.
  */
 function toRows(result: unknown): unknown[] {
   if (Array.isArray(result)) return result;

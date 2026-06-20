@@ -1,5 +1,16 @@
 import type { Admission, BreakerConfig, CircuitStatus } from './types.js';
 
+/**
+ * The pure circuit-breaker state machine — the single source of truth for admit/record semantics,
+ * shared by the in-memory and SQL stores (which call {@link computeAdmit} / {@link computeRecord}
+ * directly inside their own atomic cycle).
+ *
+ * ⚠️ The Redis store CANNOT call these — it reimplements the same branching in Lua so the whole
+ * cycle runs atomically on the server (see `@agora/resilience-store-redis`'s `lua.ts`). Any change
+ * to the transitions here MUST be mirrored in those scripts, or a Redis-backed circuit will diverge
+ * from the others. The shared `runResilienceStoreContract` is the guard that catches such drift.
+ */
+
 /** Plain, serializable circuit state — the unit every store persists. */
 export interface CircuitState {
   status: CircuitStatus;
