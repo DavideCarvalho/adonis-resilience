@@ -57,5 +57,22 @@ export function runResilienceStoreContract(
       expect(await s.record('k', cfg, false, true)).toBe('open');
       expect((await s.snapshot('k')).status).toBe('open');
     });
+
+    it('reset clears an open circuit back to closed and admits again', async () => {
+      const s = makeStore(new FakeClock());
+      for (let i = 0; i < 3; i++) await s.record('k', cfg, false, false);
+      expect((await s.snapshot('k')).status).toBe('open');
+      await s.reset('k');
+      const snap = await s.snapshot('k');
+      expect(snap.status).toBe('closed');
+      expect(snap.failures).toBe(0);
+      expect((await s.admit('k', cfg)).allow).toBe(true);
+    });
+
+    it('reset is a no-op on an unknown key', async () => {
+      const s = makeStore(new FakeClock());
+      await s.reset('never-seen');
+      expect((await s.snapshot('never-seen')).status).toBe('closed');
+    });
   });
 }

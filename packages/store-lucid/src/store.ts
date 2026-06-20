@@ -63,25 +63,23 @@ function toRows(result: unknown): unknown[] {
  * Build the agnostic {@link SqlDriver} over a Lucid client. Lucid uses `?` positional placeholders on
  * its sqlite and mysql dialects, so the breaker SQL uses the `positional` style. Transactions go
  * through Lucid's `db.transaction()`, which the breaker's `FOR UPDATE` locking relies on for
- * atomicity on databases that support row locks. On SQLite (no `FOR UPDATE`), the clause is stripped
- * — transaction-level write serialisation preserves the same atomicity guarantee.
+ * atomicity on databases that support row locks. The `lockRows` capability is passed straight
+ * through to core, which generates the locking read with or without `FOR UPDATE` accordingly — this
+ * adapter never rewrites SQL.
  */
 function lucidDriver(db: LucidDatabase, supportsForUpdate: boolean): SqlDriver {
-  const rewrite = supportsForUpdate
-    ? (sql: string) => sql
-    : (sql: string) => sql.replace(/\s+FOR\s+UPDATE/gi, '');
-
   const tx = (client: LucidQueryClient): SqlTx => ({
     run: async (sql, params) => {
-      await client.rawQuery(rewrite(sql), params);
+      await client.rawQuery(sql, params);
     },
-    all: async (sql, params) => toRows(await client.rawQuery(rewrite(sql), params)),
+    all: async (sql, params) => toRows(await client.rawQuery(sql, params)),
   });
 
   return {
     placeholders: 'positional',
+    lockRows: supportsForUpdate,
     transaction: (body) => db.transaction((trx) => body(tx(trx))),
-    read: async (sql, params) => toRows(await db.rawQuery(rewrite(sql), params)),
+    read: async (sql, params) => toRows(await db.rawQuery(sql, params)),
     exec: async (sql) => {
       await db.rawQuery(sql);
     },
@@ -140,6 +138,11 @@ export class LucidResilienceStore extends SqlResilienceStore {
   override async snapshot(...args: Parameters<SqlResilienceStore['snapshot']>) {
     await this.ready();
     return super.snapshot(...args);
+  }
+
+  override async reset(...args: Parameters<SqlResilienceStore['reset']>) {
+    await this.ready();
+    return super.reset(...args);
   }
 }
 

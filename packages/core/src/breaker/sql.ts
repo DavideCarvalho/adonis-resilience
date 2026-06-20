@@ -30,23 +30,30 @@ interface SqlStatements {
   selectForUpdate: string;
   selectPlain: string;
   updateState: string;
+  deleteRow: string;
 }
 
-/** Build the statement set for a dialect. Single source of truth for the breaker's SQL. */
-function statements(style: SqlPlaceholderStyle): SqlStatements {
+/**
+ * Build the statement set for a dialect. Single source of truth for the breaker's SQL — including
+ * whether the pessimistic read carries `FOR UPDATE`. Dialects without row-lock syntax (SQLite) pass
+ * `lockRows: false` and the clause is simply omitted here, so no adapter ever rewrites SQL by hand.
+ */
+function statements(style: SqlPlaceholderStyle, lockRows: boolean): SqlStatements {
   const p = style === 'numbered' ? (n: number) => `$${n}` : () => '?';
+  const forUpdate = lockRows ? '\nFOR UPDATE' : '';
   return {
     // Ensure the row exists (no-op if already present).
     insertInitial: `
 INSERT INTO resilience_circuits (key, status, failures, open_until, probes)
 VALUES (${p(1)}, 'closed', 0, 0, 0)
 ON CONFLICT (key) DO NOTHING;`,
-    // Pessimistic lock — must run inside the same transaction as insertInitial.
+    // Pessimistic read — must run inside the same transaction as insertInitial. The `FOR UPDATE`
+    // row lock is included only when the dialect supports it (see `lockRows`); on a single-writer
+    // dialect like SQLite, transaction-level write serialisation preserves the same atomicity.
     selectForUpdate: `
 SELECT status, failures, open_until, probes
 FROM resilience_circuits
-WHERE key = ${p(1)}
-FOR UPDATE;`,
+WHERE key = ${p(1)}${forUpdate};`,
     // Non-locking read for snapshot().
     selectPlain: `
 SELECT status, failures, open_until, probes
@@ -57,6 +64,10 @@ WHERE key = ${p(1)};`,
 UPDATE resilience_circuits
 SET status = ${p(1)}, failures = ${p(2)}, open_until = ${p(3)}, probes = ${p(4)}
 WHERE key = ${p(5)};`,
+    // Clear a circuit back to its initial state (reset()). A missing row is a no-op.
+    deleteRow: `
+DELETE FROM resilience_circuits
+WHERE key = ${p(1)};`,
   };
 }
 
@@ -86,6 +97,12 @@ export interface SqlTx {
  */
 export interface SqlDriver {
   readonly placeholders: SqlPlaceholderStyle;
+  /**
+   * Whether the dialect supports `SELECT … FOR UPDATE` row locks. When `false`, the locking read is
+   * generated without the clause (the dialect — e.g. SQLite — must serialise transaction writers
+   * itself). Defaults to `true` when omitted.
+   */
+  readonly lockRows?: boolean;
   /** Run `body` inside one atomic transaction (the breaker relies on `FOR UPDATE` locking within it). */
   transaction<R>(body: (tx: SqlTx) => Promise<R>): Promise<R>;
   /** Non-transactional read, used by `snapshot()`. */
@@ -111,7 +128,7 @@ export class SqlResilienceStore implements ResilienceStore {
     private readonly driver: SqlDriver,
     opts: SqlResilienceStoreOptions = {},
   ) {
-    this.stmts = statements(driver.placeholders);
+    this.stmts = statements(driver.placeholders, driver.lockRows ?? true);
     this.clock = opts.clock ?? systemClock;
   }
 
@@ -169,5 +186,11 @@ export class SqlResilienceStore implements ResilienceStore {
       failures: s.failures,
       ...(s.openUntil ? { openUntil: s.openUntil } : {}),
     };
+  }
+
+  reset(key: string): Promise<void> {
+    return this.driver.transaction(async (tx) => {
+      await tx.run(this.stmts.deleteRow, [key]);
+    });
   }
 }

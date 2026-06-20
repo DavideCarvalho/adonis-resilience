@@ -46,4 +46,10 @@ export class InMemoryResilienceStore implements ResilienceStore {
       ...(e.openUntil ? { openUntil: e.openUntil } : {}),
     };
   }
+
+  async reset(key: string): Promise<void> {
+    // Dropping the entry is equivalent to resetting to INITIAL_CIRCUIT_STATE — the next
+    // entry(key) recreates it fresh.
+    this.map.delete(key);
+  }
 }

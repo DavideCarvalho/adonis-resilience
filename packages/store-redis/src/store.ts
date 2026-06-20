@@ -18,6 +18,7 @@ import { ADMIT_LUA, RECORD_LUA } from './lua.js';
 export interface RedisLike {
   defineCommand(name: string, definition: { numberOfKeys: number; lua: string }): void;
   hmget(key: string, ...fields: string[]): Promise<(string | null)[]>;
+  del(key: string): Promise<unknown>;
 }
 
 /** {@link RedisLike} augmented with the two Lua commands we register via `defineCommand`. */
@@ -127,6 +128,12 @@ export class RedisResilienceStore implements ResilienceStore {
       failures: failures ? Number(failures) : 0,
       ...(ou > 0 ? { openUntil: ou } : {}),
     };
+  }
+
+  async reset(key: string): Promise<void> {
+    // Deleting the hash resets the circuit: snapshot()/admit() see the closed defaults for a
+    // missing key. Idempotent — DEL on an absent key is a no-op.
+    await this.redis.del(this.k(key));
   }
 }
 

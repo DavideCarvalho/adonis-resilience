@@ -20,4 +20,10 @@ export interface ResilienceStore {
   record(key: string, cfg: BreakerConfig, ok: boolean, probe: boolean): Promise<CircuitStatus>;
   /** Read-only snapshot. */
   snapshot(key: string): Promise<CircuitSnapshot>;
+  /**
+   * Clear a circuit back to its initial closed state (failures 0, no cooldown). The next `admit`
+   * starts from a clean slate, exactly as if the key had never been seen. Idempotent — resetting an
+   * unknown key is a no-op.
+   */
+  reset(key: string): Promise<void>;
 }

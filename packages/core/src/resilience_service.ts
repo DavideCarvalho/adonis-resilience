@@ -59,9 +59,7 @@ export class ResilienceService {
     const store = this.store;
     return {
       snapshot: (): Promise<CircuitSnapshot> => store.snapshot(key),
-      reset: async (): Promise<void> => {
-        await store.record(key, { threshold: 1, cooldownMs: 0 }, true, false);
-      },
+      reset: (): Promise<void> => store.reset(key),
     };
   }
 
