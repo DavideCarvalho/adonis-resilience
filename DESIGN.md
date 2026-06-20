@@ -38,10 +38,14 @@ Isso deixa cada repo buildar/testar isolado, sem precisar publicar os outros.
 
 ## 5. Stores
 
-- In-memory (default, 1 processo) e `SqlResilienceStore` (agnóstico, distribuído).
-- **Follow-up:** pacotes adapter dedicados (`-store-lucid`, `-store-redis`,
-  prisma/typeorm/mikro-orm/drizzle). O `SqlResilienceStore` + driver fino já
-  cobre persistência distribuída hoje.
+- Stores selecionados em `config/resilience.ts` via a factory `stores`
+  (`stores.memory()`, `stores.lucid()`, `stores.redis()`), todos no pacote core.
+  Os drivers Lucid/Redis importam o peer (`@adonisjs/lucid`, `@adonisjs/redis`)
+  de forma lazy, só quando selecionados — peers opcionais.
+- `SqlResilienceStore` (agnóstico) continua exportado para outros engines SQL
+  via um `SqlDriver` fino.
+- **Follow-up:** drivers para prisma/typeorm/mikro-orm/drizzle sobre o
+  `SqlResilienceStore`.
 
 ## 6. Não-objetivos
 

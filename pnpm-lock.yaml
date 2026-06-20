@@ -41,31 +41,12 @@ importers:
       '@adonisjs/core':
         specifier: ^6.17.0
         version: 6.21.0(@adonisjs/assembler@7.8.2(typescript@5.9.3))(@vinejs/vine@3.0.1)
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.43
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.6(@types/node@20.19.43)
-
-  packages/store-lucid:
-    dependencies:
-      '@agora/resilience':
-        specifier: workspace:^
-        version: link:../core
-    devDependencies:
-      '@adonisjs/assembler':
-        specifier: ^7.8.0
-        version: 7.8.2(typescript@5.9.3)
-      '@adonisjs/core':
-        specifier: ^6.17.0
-        version: 6.21.0(@adonisjs/assembler@7.8.2(typescript@5.9.3))(@vinejs/vine@3.0.1)
       '@adonisjs/lucid':
         specifier: ^21.0.0
         version: 21.8.2(@adonisjs/assembler@7.8.2(typescript@5.9.3))(@adonisjs/core@6.21.0(@adonisjs/assembler@7.8.2(typescript@5.9.3))(@vinejs/vine@3.0.1))(@vinejs/vine@3.0.1)(better-sqlite3@11.10.0)(luxon@3.7.2)
+      '@adonisjs/redis':
+        specifier: ^9.0.0
+        version: 9.2.0(@adonisjs/core@6.21.0(@adonisjs/assembler@7.8.2(typescript@5.9.3))(@vinejs/vine@3.0.1))
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.43
@@ -75,37 +56,15 @@ importers:
       better-sqlite3:
         specifier: ^11.0.0
         version: 11.10.0
-      luxon:
-        specifier: ^3.4.0
-        version: 3.7.2
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.6(@types/node@20.19.43)
-
-  packages/store-redis:
-    dependencies:
-      '@agora/resilience':
-        specifier: workspace:^
-        version: link:../core
-    devDependencies:
-      '@adonisjs/core':
-        specifier: ^6.17.0
-        version: 6.21.0(@adonisjs/assembler@7.8.2(typescript@5.9.3))(@vinejs/vine@3.0.1)
-      '@adonisjs/redis':
-        specifier: ^9.0.0
-        version: 9.2.0(@adonisjs/core@6.21.0(@adonisjs/assembler@7.8.2(typescript@5.9.3))(@vinejs/vine@3.0.1))
-      '@types/node':
-        specifier: ^20.0.0
-        version: 20.19.43
       ioredis:
         specifier: ^5.0.0
         version: 5.11.1
       ioredis-mock:
         specifier: ^8.9.0
         version: 8.13.1(@types/ioredis-mock@8.2.7(ioredis@5.11.1))(ioredis@5.11.1)
+      luxon:
+        specifier: ^3.4.0
+        version: 3.7.2
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

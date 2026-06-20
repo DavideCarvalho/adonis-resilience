@@ -1,9 +1,9 @@
-import { type Clock, FakeClock } from '@agora/resilience';
-import type { BreakerConfig } from '@agora/resilience';
 import { describe, expect, it, vi } from 'vitest';
+import { type Clock, FakeClock } from '../src/index.js';
+import type { BreakerConfig } from '../src/index.js';
 import { RedisResilienceStore, redisResilienceStore } from '../src/index.js';
-import type { RedisLike } from '../src/store.js';
-import { makeMockRedis } from './helpers.js';
+import type { RedisLike } from '../src/stores/redis.js';
+import { makeMockRedis } from './redis-helpers.js';
 
 const cfg: BreakerConfig = { threshold: 3, cooldownMs: 1000 };
 

@@ -1,0 +1,99 @@
+---
+title: Integrations
+description: Emit state transitions over @agora/diagnostics (for Telescope), mirror them onto an EventEmitter, and make breaker keys tenant-aware through @agora/context — all soft-detected and optional.
+icon: Activity
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+Resilience plugs into the rest of the ecosystem through **event sinks** and a **context** accessor. Every integration is optional and soft-detected through a global `Symbol.for(...)` slot — nothing is a hard dependency, so each package builds and tests in isolation.
+
+## Events
+
+Each state transition is a `ResilienceEvent` handed to an `EventSink`:
+
+```ts
+type ResilienceEventType =
+  | 'circuit-opened' | 'circuit-closed' | 'circuit-half-open'
+  | 'short-circuited' | 'failover' | 'timeout' | 'retry'
+
+interface ResilienceEvent {
+  type: ResilienceEventType
+  key?: string              // the breaker key, when applicable
+  [extra: string]: unknown  // e.g. failover carries target / index / error
+}
+
+type EventSink = (event: ResilienceEvent) => void
+```
+
+In the current core, the **circuit breaker** emits `circuit-opened`, `circuit-closed`, `circuit-half-open` and `short-circuited`, and **failover** emits `failover` (carrying `target`, `index`, `error`). The `timeout` and `retry` types are reserved in the union for future/custom sinks.
+
+Pass `onEvent` to any policy, or let the `ResilienceService` wire the sinks for you. Combine several with `combineSinks` — a misbehaving sink can't break the others or the policy:
+
+```ts
+import { circuitBreaker, combineSinks, diagnosticsSink, eventEmitterSink } from '@agora/resilience'
+
+circuitBreaker({
+  key: 'payments',
+  store,
+  threshold: 5,
+  cooldownMs: 30_000,
+  onEvent: combineSinks(diagnosticsSink(), eventEmitterSink(emitter)),
+})
+```
+
+## Diagnostics
+
+`diagnosticsSink()` republishes each event onto [`@agora/diagnostics`](/docs/diagnostics) as **`agora:resilience:<type>`** — so [Telescope](/docs/telescope) or any `onDiagnostic('resilience', …)` subscriber can observe circuit and failover activity. It reads the diagnostics `emit` function through the global slot `Symbol.for('@agora/diagnostics:emit')`, so it's a **no-op** when diagnostics isn't installed and free when nothing is subscribed.
+
+```ts title="config/resilience.ts"
+import { defineConfig } from '@agora/resilience'
+
+export default defineConfig({ emit: true }) // default — the service installs diagnosticsSink for you
+```
+
+The `ResilienceService` wires this automatically from your config; you only call `diagnosticsSink()` by hand when composing `onEvent` on a standalone policy. Set `emit: false` to opt out.
+
+<Callout type="info">
+This is how circuit opens / failovers show up in [Telescope](/docs/telescope): resilience emits the events, diagnostics is the bus, and a Telescope watcher records them with `traceId` correlation. Resilience itself is not a dashboard — it only emits.
+</Callout>
+
+## EventEmitter mirror
+
+To react to transitions **inside your app** — invalidate a cache when a circuit opens, page on repeated failovers — mirror events onto an EventEmitter via the config's `eventEmitter`:
+
+```ts title="config/resilience.ts"
+import { defineConfig } from '@agora/resilience'
+import emitter from '@adonisjs/core/services/emitter'
+
+export default defineConfig({ eventEmitter: emitter as any })
+```
+
+Event names are derived by `resilienceEventName(type)` — dots replace dashes, under a `resilience.` prefix:
+
+```ts
+// 'circuit-opened'  → 'resilience.circuit.opened'
+// 'short-circuited' → 'resilience.short.circuited'
+// 'failover'        → 'resilience.failover'
+```
+
+<Callout type="info">
+`EventEmitterLike` is structural — anything with `emit(event, ...values)` works, so you're not tied to a specific emitter. The service combines the diagnostics sink and the emitter sink with `combineSinks` when both are present.
+</Callout>
+
+## Tenant-aware circuit keys
+
+In a multi-tenant app you usually want a circuit **per tenant** — one tenant's failing provider shouldn't trip the breaker for everyone. `tenantSuffix()` reads the current tenant id from [`@agora/context`](/docs/context) (via the shared slot `Symbol.for('@agora/context:accessor')`, returning `undefined` when context isn't present), so you can fold it into the key:
+
+```ts
+import { circuitBreaker, tenantSuffix } from '@agora/resilience'
+
+circuitBreaker({
+  key: `payments:${tenantSuffix() ?? 'global'}`,
+  store,
+  threshold: 5,
+  cooldownMs: 30_000,
+})
+```
+
+Because the key carries the tenant, a distributed [store](/docs/resilience/stores) keeps each tenant's circuit isolated and fleet-wide at the same time.

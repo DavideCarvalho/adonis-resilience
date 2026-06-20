@@ -1,13 +1,8 @@
-import {
-  type Admission,
-  type BreakerConfig,
-  type CircuitSnapshot,
-  type CircuitStatus,
-  type Clock,
-  type ResilienceStore,
-  systemClock,
-} from '@agora/resilience';
-import { ADMIT_LUA, RECORD_LUA } from './lua.js';
+import type { ResilienceStore } from '../breaker/store.js';
+import type { Admission, BreakerConfig, CircuitSnapshot, CircuitStatus } from '../breaker/types.js';
+import type { Clock } from '../clock.js';
+import { systemClock } from '../clock.js';
+import { ADMIT_LUA, RECORD_LUA } from './redis-lua.js';
 
 /**
  * The slice of an ioredis client this store relies on. Both a raw `ioredis` instance and an
@@ -138,18 +133,9 @@ export class RedisResilienceStore implements ResilienceStore {
 }
 
 /**
- * Factory for a Redis-backed {@link ResilienceStore}, intended to be wired into
- * `config/resilience.ts`:
- *
- * ```ts
- * import redis from '@adonisjs/redis/services/main'
- * import { defineConfig } from '@agora/resilience'
- * import { redisResilienceStore } from '@agora/resilience-store-redis'
- *
- * export default defineConfig({ store: redisResilienceStore(redis.connection()) })
- * ```
- *
- * Accepts an `@adonisjs/redis` connection or a raw `ioredis` client — both satisfy {@link RedisLike}.
+ * Factory for a Redis-backed {@link ResilienceStore}. Accepts an `@adonisjs/redis` connection or a
+ * raw `ioredis` client — both satisfy {@link RedisLike}. Usually you don't call this directly:
+ * `config/resilience.ts` selects it via `stores.redis({ ... })` and the provider builds it for you.
  */
 export function redisResilienceStore(
   redis: RedisLike,

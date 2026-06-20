@@ -1,11 +1,11 @@
 import {
   CIRCUITS_DDL,
-  type ResilienceStore,
   type SqlDriver,
   SqlResilienceStore,
   type SqlResilienceStoreOptions,
   type SqlTx,
-} from '@agora/resilience';
+} from '../breaker/sql.js';
+import type { ResilienceStore } from '../breaker/store.js';
 
 /**
  * The slice of a Lucid query/transaction client this store relies on. Both the root `Database`
@@ -109,10 +109,10 @@ export interface LucidResilienceStoreOptions extends SqlResilienceStoreOptions {
 /**
  * SQL-backed {@link ResilienceStore} powered by AdonisJS Lucid. A thin {@link SqlDriver} over a
  * Lucid `Database` feeds the agnostic {@link SqlResilienceStore}, so all breaker semantics stay in
- * `@agora/resilience` and this package only bridges to Lucid.
+ * core and this adapter only bridges to Lucid.
  *
  * Unless disabled via `autoCreateSchema: false`, the circuit table is lazily created exactly once
- * before the first operation, so wiring `store: lucidResilienceStore(db)` needs no extra setup.
+ * before the first operation, so wiring `stores.lucid()` needs no extra setup.
  */
 export class LucidResilienceStore extends SqlResilienceStore {
   private readonly autoCreateSchema: boolean;
@@ -153,15 +153,8 @@ export class LucidResilienceStore extends SqlResilienceStore {
 }
 
 /**
- * Factory for a Lucid-backed {@link ResilienceStore}, intended to be wired into
- * `config/resilience.ts`:
- *
- * ```ts
- * import db from '@adonisjs/lucid/services/db'
- * import { lucidResilienceStore } from '@agora/resilience-store-lucid'
- *
- * export default defineConfig({ store: lucidResilienceStore(db) })
- * ```
+ * Factory for a Lucid-backed {@link ResilienceStore}. Usually you don't call this directly:
+ * `config/resilience.ts` selects it via `stores.lucid({ ... })` and the provider builds it for you.
  */
 export function lucidResilienceStore(
   db: LucidDatabase,
@@ -173,10 +166,8 @@ export function lucidResilienceStore(
 /**
  * Run the circuit table DDL on the given Lucid client. Idempotent (`CREATE TABLE IF NOT EXISTS`),
  * so it is safe to call on every boot. Prefer a real Adonis migration in production; this helper
- * is handy for tests and quick setups. Re-exports {@link CIRCUITS_DDL} from core for migrations.
+ * is handy for tests and quick setups. See {@link CIRCUITS_DDL} for use in migrations.
  */
 export async function ensureResilienceSchema(db: LucidQueryClient): Promise<void> {
   await db.rawQuery(CIRCUITS_DDL);
 }
-
-export { CIRCUITS_DDL } from '@agora/resilience';

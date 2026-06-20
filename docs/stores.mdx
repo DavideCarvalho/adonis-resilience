@@ -1,0 +1,215 @@
+---
+title: Stores
+description: Share circuit-breaker state across instances with a config-driven ResilienceStore — in-memory by default, or Lucid (SQL) / Redis drivers selected in config/resilience.ts that coordinate the half-open probe atomically.
+icon: Database
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+
+The circuit breaker keeps its state — failure counts, open-until timestamps, the half-open probe — behind a small **`ResilienceStore`** interface. Swap the implementation to move that state from one process to your whole fleet.
+
+```ts
+interface ResilienceStore {
+  admit(key: string, cfg: BreakerConfig): Promise<Admission>                       // may I run? (and am I the probe?)
+  record(key: string, cfg: BreakerConfig, ok: boolean, probe: boolean): Promise<CircuitStatus>
+  snapshot(key: string): Promise<CircuitSnapshot>                                  // read-only inspect
+  reset(key: string): Promise<void>                                                // back to closed
+}
+```
+
+<Callout type="info">
+`admit` and `record` must be **atomic** — the whole point of a distributed store is that, under concurrent load, exactly **one** instance gets the half-open probe. Every driver below enforces that against its real engine (a Lua script for Redis, a `SELECT … FOR UPDATE` transaction for SQL) and is verified by a [shared contract suite](/docs/resilience/testing#validating-a-store).
+</Callout>
+
+## Config-driven stores
+
+All three stores ship in the core package and are selected in `config/resilience.ts` with the `stores` factory. Pick a `default` and list the stores you use under `stores`:
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'memory',
+  stores: {
+    memory: stores.memory(),
+    lucid: stores.lucid({ connection: 'pg' }),
+    redis: stores.redis({ connection: 'main' }),
+  },
+})
+```
+
+Each `stores.*` call returns a lazy thunk — listing it costs nothing. The provider builds only the configured stores at boot, and the Lucid / Redis drivers **dynamically import their peer dependency** (`@adonisjs/lucid`, `@adonisjs/redis`) only when built. So you install just the driver you point `default` at; the others stay optional.
+
+<Callout type="info">
+`@adonisjs/lucid`, `@adonisjs/redis` and `ioredis` are **optional peer dependencies** of `@agora/resilience`. Install the one your selected store needs — e.g. `npm i @adonisjs/redis ioredis` for `stores.redis()`.
+</Callout>
+
+## In-memory (default)
+
+`stores.memory()` keeps circuit state in the process — each instance trips its own breaker. JavaScript's single-threaded run-to-completion model gives it atomicity for free, and it needs no peer dependency. It is the default the published config ships with.
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'memory',
+  stores: { memory: stores.memory() },
+})
+```
+
+`stores.memory({ clock })` accepts an optional `Clock` for tests. The underlying `InMemoryResilienceStore` is also exported if you want to construct one by hand.
+
+## Distributed stores
+
+<Tabs items={['Lucid', 'Redis']}>
+<Tab value="Lucid">
+
+```sh
+npm i @adonisjs/lucid
+```
+
+`stores.lucid()` builds a thin SQL driver over the Lucid connection and feeds the agnostic `SqlResilienceStore`, so all breaker semantics live in core:
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'lucid',
+  stores: {
+    lucid: stores.lucid({ connection: 'pg' }), // omit `connection` for the default
+  },
+})
+```
+
+By default the circuit table is created lazily on first use via the idempotent `CREATE TABLE IF NOT EXISTS` — no extra setup. The driver auto-detects the dialect: it uses `SELECT … FOR UPDATE` row locks on Postgres/MySQL and strips them on SQLite (which serialises transaction writers itself).
+
+```ts
+interface LucidStoreConfig {
+  connection?: string         // @adonisjs/lucid connection name — default connection if omitted
+  clock?: Clock
+  autoCreateSchema?: boolean  // default true — set false if you own the schema via a migration
+  useRowLocks?: boolean       // override dialect auto-detection
+}
+```
+
+</Tab>
+<Tab value="Redis">
+
+```sh
+npm i @adonisjs/redis ioredis
+```
+
+`stores.redis()` resolves the named `@adonisjs/redis` connection and runs entirely on its underlying ioredis client:
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'redis',
+  stores: {
+    redis: stores.redis({ connection: 'main' }), // omit `connection` for the default
+  },
+})
+```
+
+`admit`/`record` each run as a single server-side Lua script — no schema, no migration. The Lua branching mirrors core's pure state machine, so a Redis-backed circuit behaves identically to the in-memory and SQL stores.
+
+```ts
+interface RedisStoreConfig {
+  connection?: string // @adonisjs/redis connection name — default connection if omitted
+  clock?: Clock
+  keyPrefix?: string  // default 'agora:resilience:circuit:'
+  ttlMs?: number      // optional sliding TTL — idle circuits expire back to closed; omit to keep forever
+}
+```
+
+So a circuit `payments` lives at `agora:resilience:circuit:payments` by default. The scripts are registered once per connection via `defineCommand`.
+
+</Tab>
+</Tabs>
+
+## Lucid: migration over auto-create
+
+Auto-create is convenient, but in production you usually own the schema with a migration. Disable auto-create and run the DDL from a migration instead. The package exports `CIRCUITS_DDL` (and an `ensureResilienceSchema(db)` helper):
+
+<Steps>
+<Step>
+
+### Create the migration
+
+```ts title="database/migrations/XXXX_create_resilience_circuits.ts"
+import { BaseSchema } from '@adonisjs/lucid/schema'
+
+export default class extends BaseSchema {
+  async up() {
+    this.schema.createTable('resilience_circuits', (table) => {
+      table.text('key').primary()
+      table.text('status').notNullable().defaultTo('closed')
+      table.integer('failures').notNullable().defaultTo(0)
+      table.bigInteger('open_until').notNullable().defaultTo(0)
+      table.integer('probes').notNullable().defaultTo(0)
+    })
+  }
+
+  async down() {
+    this.schema.dropTable('resilience_circuits')
+  }
+}
+```
+
+The columns match `CIRCUITS_DDL` — `key`, `status`, `failures`, `open_until`, `probes`. If you prefer the raw DDL string, run `this.schema.raw(CIRCUITS_DDL)` instead.
+
+</Step>
+<Step>
+
+### Skip the runtime CREATE TABLE
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'lucid',
+  stores: {
+    lucid: stores.lucid({ connection: 'pg', autoCreateSchema: false }),
+  },
+})
+```
+
+</Step>
+</Steps>
+
+## Bring your own engine
+
+Under the hood the Lucid store is just a thin `SqlDriver` over the agnostic `SqlResilienceStore` exported from core. To back the breaker with any other SQL driver, implement `SqlDriver` and hand it to `SqlResilienceStore`, then wire it as an explicit `store`:
+
+```ts
+import { SqlResilienceStore, type SqlDriver } from '@agora/resilience'
+
+const driver: SqlDriver = {
+  placeholders: 'numbered',                 // '$1, $2' (Postgres) or 'positional' for '?'
+  lockRows: true,                           // false on engines without SELECT … FOR UPDATE (e.g. SQLite)
+  transaction: (body) => pool.transaction((tx) => body({
+    run: (sql, params) => tx.query(sql, params).then(() => undefined),
+    all: (sql, params) => tx.query(sql, params).then((r) => r.rows),
+  })),
+  read: (sql, params) => pool.query(sql, params).then((r) => r.rows),
+  exec: (sql) => pool.query(sql).then(() => undefined),
+}
+
+const store = new SqlResilienceStore(driver)
+await store.ensureSchema() // runs CIRCUITS_DDL
+```
+
+Pass a fully-constructed store as `store` in `config/resilience.ts` (it takes precedence over `default`/`stores`):
+
+```ts title="config/resilience.ts"
+export default defineConfig({ store })
+```
+
+`SqlResilienceStore` owns the atomic load→compute→persist cycle and the dialect-aware statements, so breaker semantics live in exactly one place. For a non-SQL engine (or fully custom storage), implement the four `ResilienceStore` methods directly.
+
+<Callout type="info">
+All stores share one type, `BreakerConfig` (`threshold`, `cooldownMs`, `halfOpenMax?`) — the same options you pass to `circuitBreaker`. Bring your own engine by implementing the store and validating it against the [contract suite](/docs/resilience/testing#validating-a-store) — if it passes, it behaves like the built-ins under concurrency.
+</Callout>

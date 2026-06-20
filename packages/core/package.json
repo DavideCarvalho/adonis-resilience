@@ -44,12 +44,33 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "peerDependencies": {
-    "@adonisjs/core": "^6.12.0"
+    "@adonisjs/core": "^6.12.0",
+    "@adonisjs/lucid": "^21.0.0",
+    "@adonisjs/redis": "^9.0.0",
+    "ioredis": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@adonisjs/lucid": {
+      "optional": true
+    },
+    "@adonisjs/redis": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@adonisjs/assembler": "^7.8.0",
     "@adonisjs/core": "^6.17.0",
+    "@adonisjs/lucid": "^21.0.0",
+    "@adonisjs/redis": "^9.0.0",
     "@types/node": "^20.0.0",
+    "@vinejs/vine": "^3.0.0",
+    "better-sqlite3": "^11.0.0",
+    "ioredis": "^5.0.0",
+    "ioredis-mock": "^8.9.0",
+    "luxon": "^3.4.0",
     "typescript": "^5.4.0",
     "vitest": "^3.0.0"
   },
@@ -64,6 +85,9 @@
     "retry",
     "timeout",
     "failover",
+    "lucid",
+    "redis",
+    "store",
     "agora"
   ]
 }

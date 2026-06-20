@@ -1,0 +1,82 @@
+---
+title: Testing
+description: Drive time deterministically with FakeClock so timeouts, backoff and cooldowns are instant and reproducible — and validate a custom store against the shared contract suite.
+icon: FlaskConical
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+Resilience is full of time — timeouts, retry backoff, breaker cooldowns. To test it without real waiting, every time-dependent policy accepts an injectable `Clock`, and the package ships a `FakeClock` you advance by hand.
+
+## The clock seam
+
+```ts
+interface Clock {
+  now(): number
+  setTimer(ms: number, cb: () => void): () => void // returns a cancel fn
+  delay(ms: number, signal?: AbortSignal): Promise<void>
+}
+```
+
+`timeout`, `retry`, and the stores (`InMemoryResilienceStore`, the Lucid/Redis adapters, `SqlResilienceStore`) all take `{ clock }`. Pass a `FakeClock` and call `advance(ms)` to fire timers instantly — it fires due timers in scheduled order as you advance:
+
+```ts
+import { FakeClock, timeout, TimeoutError } from '@agora/resilience'
+
+it('times out without real waiting', async () => {
+  const clock = new FakeClock()
+  const policy = timeout(1_000, { clock })
+
+  const pending = policy.execute(() => new Promise(() => {})) // never resolves
+  clock.advance(1_000)                                        // jump past the deadline
+
+  await expect(pending).rejects.toBeInstanceOf(TimeoutError)
+})
+```
+
+The same trick drives a breaker through its cooldown deterministically — give the in-memory store the same clock:
+
+```ts
+import { FakeClock, InMemoryResilienceStore, circuitBreaker, BrokenCircuitError } from '@agora/resilience'
+
+const clock = new FakeClock()
+const store = new InMemoryResilienceStore(clock)
+const breaker = circuitBreaker({ key: 'svc', store, threshold: 1, cooldownMs: 5_000 })
+
+await expect(breaker.execute(() => Promise.reject(new Error('boom')))).rejects.toThrow()           // opens
+await expect(breaker.execute(() => Promise.resolve('ok'))).rejects.toBeInstanceOf(BrokenCircuitError) // open
+
+clock.advance(5_000) // cooldown elapses → half-open
+await expect(breaker.execute(() => Promise.resolve('ok'))).resolves.toBe('ok') // probe closes it
+```
+
+<Callout type="info">
+Because `FakeClock` fires timers in scheduled order as you `advance`, retry backoff (`100ms → 200ms → 400ms`) plays out across `advance` calls with no real `setTimeout` and no flakiness.
+</Callout>
+
+## Asserting circuit state
+
+Read a circuit's `CircuitSnapshot` (`status`, `failures`, `openUntil?`) straight off the store, or through the service's `circuit(key)` handle:
+
+```ts
+expect((await store.snapshot('svc')).status).toBe('open')
+await store.reset('svc')                                   // force back to closed
+expect((await store.snapshot('svc')).failures).toBe(0)
+```
+
+## Validating a store
+
+Writing your own `ResilienceStore` (or wiring a new engine)? The package exposes the **same contract** every built-in adapter passes, from the dedicated `testing` subpath — kept separate so the production barrel never pulls in your test runner:
+
+```ts title="my-store.contract.spec.ts"
+import { runResilienceStoreContract } from '@agora/resilience/testing'
+import { MyResilienceStore } from './my-store.js'
+
+runResilienceStoreContract('MyResilienceStore', (clock) => new MyResilienceStore({ clock }))
+```
+
+`runResilienceStoreContract(name, makeStore)` registers a Vitest `describe` block that hammers atomicity and the state machine — including the key invariant that **N concurrent `admit` calls in half-open yield exactly one probe**. The factory receives a `Clock` so the suite controls time.
+
+<Callout type="info">
+The Lucid and Redis adapters run this same suite against real engines. If your store passes it, it behaves like the built-ins under concurrency — including no lost updates and a single coordinated half-open probe.
+</Callout>

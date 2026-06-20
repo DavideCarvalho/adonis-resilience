@@ -1,0 +1,176 @@
+---
+title: Policies
+description: The policy engine — timeout, retry with backoff, circuit breaker, wrap composition, and the list-oriented failover primitive, plus the typed errors they throw.
+icon: Layers
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+A **policy** is a small object with one method:
+
+```ts
+interface Policy {
+  execute<T>(op: (ctx: PolicyContext) => Promise<T>, parent?: PolicyContext): Promise<T>
+}
+
+interface PolicyContext {
+  signal: AbortSignal // abort cooperatively on timeout
+  attempt: number     // 0-based retry attempt
+}
+```
+
+Every built-in policy is a factory that returns one. They share the same shape, so they compose. The optional `parent` argument is how `wrap` threads context (and the abort signal) from an outer layer into an inner one — you rarely pass it by hand. `rootContext()` produces the never-aborting context used at the top of a chain.
+
+## `wrap` — compose policies
+
+`wrap(...policies)` builds one policy from many. The **first argument is the outermost** layer; the last sits closest to your operation:
+
+```ts
+import { wrap, timeout, retry, circuitBreaker } from '@agora/resilience'
+
+const policy = wrap(timeout(2_000), retry({ attempts: 3 }), circuitBreaker({ /* … */ }))
+// execution order: timeout( retry( circuitBreaker( op ) ) )
+```
+
+Read it top-down: the timeout bounds the *entire* retry loop; the breaker wraps each individual attempt. Order matters — put `timeout` inside the `retry` instead if you want a per-attempt deadline (see the recipe below).
+
+## `timeout`
+
+```ts
+timeout(ms: number, opts?: { clock?: Clock }): Policy
+```
+
+Rejects with a **`TimeoutError`** if the operation hasn't settled within `ms`, and aborts the `PolicyContext.signal` so cooperating work can stop:
+
+```ts
+import { timeout, TimeoutError } from '@agora/resilience'
+
+try {
+  await timeout(5_000).execute(({ signal }) => fetch(url, { signal }))
+} catch (err) {
+  if (err instanceof TimeoutError) console.warn(`timed out after ${err.ms}ms`)
+}
+```
+
+<Callout type="warn">
+A timeout can only *cancel* work that listens to the `AbortSignal`. Always thread `ctx.signal` into your HTTP client / DB driver — otherwise the timeout rejects the promise but the underlying request keeps running.
+</Callout>
+
+The `timeout` policy also forwards aborts from its `parent` context, so an outer timeout cancels an inner one.
+
+## `retry` and backoff
+
+```ts
+retry(opts: { attempts: number; backoff?: Backoff; clock?: Clock }): Policy
+```
+
+Re-runs the operation up to `attempts` times, waiting `backoff(attempt)` milliseconds between tries. After the last failure it rethrows the final error. `attempts: 3` means **three total tries**. The backoff defaults to `() => 0` (no wait), and each attempt sees its 0-based index on `ctx.attempt`. The inter-attempt delay honours the parent's `AbortSignal`, so a wrapping timeout cuts a pending backoff short.
+
+`Backoff` is just `(attempt: number) => number`. The package ships `exponential`:
+
+```ts
+import { retry, exponential } from '@agora/resilience'
+
+retry({ attempts: 4, backoff: exponential(100) })
+// waits 100ms, 200ms, 400ms between the four attempts (factor defaults to 2)
+
+retry({ attempts: 4, backoff: exponential(100, { jitter: true, factor: 3 }) })
+// 100ms·3^n, each randomized to 50–100% to spread out a thundering herd
+```
+
+There's no `constant()` helper — a fixed delay is just a function:
+
+```ts
+retry({ attempts: 5, backoff: () => 250 }) // always 250ms
+```
+
+## `circuitBreaker`
+
+```ts
+circuitBreaker(opts: {
+  key: string
+  store: ResilienceStore  // required — pick where breaker state lives
+  threshold: number       // consecutive failures before opening
+  cooldownMs: number      // how long to stay open before probing
+  halfOpenMax?: number    // concurrent probes allowed in half-open (default 1)
+  onEvent?: EventSink
+}): Policy
+```
+
+Tracks failures per `key` in a [store](/docs/resilience/stores). After `threshold` failures it **opens** — every call fails fast with a **`BrokenCircuitError`** instead of hammering a dead dependency. After `cooldownMs` it goes **half-open** and lets a single probe through; a success **closes** it, a failure re-opens it.
+
+```ts
+import { circuitBreaker, BrokenCircuitError, InMemoryResilienceStore } from '@agora/resilience'
+
+const breaker = circuitBreaker({
+  key: 'inventory-api',
+  store: new InMemoryResilienceStore(),
+  threshold: 5,
+  cooldownMs: 30_000,
+})
+
+try {
+  await breaker.execute(() => inventory.check(sku))
+} catch (err) {
+  if (err instanceof BrokenCircuitError) {
+    // err.key === 'inventory-api' — short-circuited, don't even try
+  }
+}
+```
+
+Unlike the NestJS counterpart, the breaker has no implicit module-wide store: `store` is a required option. Pass the same store instance to every breaker that should share state (or wire one store into [`config/resilience.ts`](/docs/resilience/adonis) and reuse it).
+
+<Callout type="info">
+The in-memory store keeps breaker state per process. To trip the breaker fleet-wide — one instance opens, all instances skip — pass a distributed store and the half-open probe is coordinated atomically. See [Stores](/docs/resilience/stores).
+</Callout>
+
+## `failover`
+
+`failover()` walks an ordered list of targets, running each through an optional per-target policy, and returns the first success. When **every** target fails it throws the last error (and throws immediately if `targets` is empty).
+
+```ts
+failover<TTarget, R>(opts: {
+  targets: TTarget[]
+  run: (target: TTarget, ctx: PolicyContext) => Promise<R>
+  policy?: (target: TTarget) => Policy
+  onFailover?: (target: TTarget, error: unknown, index: number) => void
+  onEvent?: EventSink
+}): Promise<R>
+```
+
+Unlike the other policies, `failover` runs immediately and returns the result — it's a function, not a `Policy`. Give each target its own breaker + timeout so a known-dead target is skipped instantly:
+
+```ts
+import { failover, wrap, timeout, circuitBreaker, InMemoryResilienceStore } from '@agora/resilience'
+
+const store = new InMemoryResilienceStore()
+
+const sms = await failover({
+  targets: [twilio, vonage, sns],
+  run: (provider, { signal }) => provider.send(message, { signal }),
+  policy: (provider) =>
+    wrap(circuitBreaker({ key: `sms:${provider.id}`, store, threshold: 5, cooldownMs: 30_000 }), timeout(8_000)),
+  onFailover: (provider, err, i) => logger.warn(`sms #${i} ${provider.id} failed: ${err}`),
+})
+```
+
+Each failover step emits a `failover` event carrying `target` (stringified), `index`, and `error`. When you call it through [`ResilienceService.failover`](/docs/resilience/adonis), the service wires its own event sink for you.
+
+## Recipe: per-attempt timeout
+
+Putting `timeout` **inside** `retry` bounds each try rather than the whole loop, so a single slow attempt is retried instead of failing the lot:
+
+```ts
+const policy = wrap(retry({ attempts: 3, backoff: exponential(100) }), timeout(1_000))
+await policy.execute(() => callOnce())
+// retry( timeout( callOnce ) ) — each attempt has its own 1s deadline
+```
+
+## Errors
+
+| Error | Thrown by | Carries |
+| --- | --- | --- |
+| `TimeoutError` | `timeout` | `ms` — the deadline that elapsed |
+| `BrokenCircuitError` | `circuitBreaker` | `key` — the open circuit's key |
+
+Both extend `Error` with a stable `name`, so `instanceof` checks work across module boundaries.

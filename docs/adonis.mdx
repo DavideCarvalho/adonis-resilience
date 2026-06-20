@@ -1,0 +1,146 @@
+---
+title: Service & Config
+description: Register named policies in config/resilience.ts, let the provider bind a singleton ResilienceService, and run policies + inspect circuits through the container.
+icon: Boxes
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+The AdonisJS surface is three things: **`config/resilience.ts`** where you declare named policies + the store, the **provider** that binds a singleton `ResilienceService` from that config, and the **`ResilienceService`** itself for running policies imperatively and inspecting circuits.
+
+<Callout type="info">
+NestJS used `@Timeout` / `@Retry` / `@CircuitBreaker` decorators plus a provider explorer that rewrapped methods at startup. AdonisJS has no idiomatic provider scan, so the decorator/explorer path is **dropped**. Use the policy functions directly (`wrap(timeout(…), retry(…))`) or register named policies in config and run them via `ResilienceService.execute('name', op)`.
+</Callout>
+
+## The provider
+
+`node ace configure @agora/resilience` registers `@agora/resilience/resilience_provider`, which binds `ResilienceService` as a **singleton**, built lazily from `config/resilience.ts`:
+
+```ts title="providers/resilience_provider.ts (published)"
+export default class ResilienceProvider {
+  register() {
+    this.app.container.singleton(ResilienceService, () => {
+      const config = this.app.config.get<ResilienceConfig>('resilience', {})
+      return new ResilienceService(config)
+    })
+  }
+}
+```
+
+Because the factory is lazy, the config is read on first resolve (after the config phase), and the store + event sink come straight from the file.
+
+## The config
+
+`config/resilience.ts` is typed by `defineConfig`:
+
+```ts
+interface ResilienceConfig {
+  default?: string                        // name of the store (a key of `stores`) the breaker uses
+  stores?: Record<string, StoreProvider>  // named stores, built with the `stores` factory
+  store?: ResilienceStore                 // explicit store — wins over default/stores; else InMemory
+  policies?: Record<string, () => Policy> // named policies for ResilienceService.execute
+  emit?: boolean                          // default: true — emit diagnostics events
+  eventEmitter?: EventEmitterLike         // mirror events to an EventEmitter2-style emitter
+}
+```
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores, wrap, timeout, retry, exponential } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'memory',
+  stores: {
+    memory: stores.memory(),
+  },
+  policies: {
+    payments: () => wrap(timeout(2_000), retry({ attempts: 3, backoff: exponential(100) })),
+  },
+})
+```
+
+For a distributed store, point `default` at a Lucid or Redis store built with the `stores` factory — each lazily imports its peer dependency only when selected:
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores, wrap, timeout, retry, exponential } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'redis',
+  stores: {
+    memory: stores.memory(),
+    redis: stores.redis({ connection: 'main' }), // @adonisjs/redis + ioredis
+  },
+  policies: {
+    payments: () => wrap(timeout(2_000), retry({ attempts: 3, backoff: exponential(100) })),
+  },
+})
+```
+
+See [Stores](/docs/resilience/stores) for the Lucid and Redis drivers and migrations.
+
+<Callout type="info">
+`emit: true` (default) routes every state transition to [`@agora/diagnostics`](/docs/diagnostics) on the `agora:resilience:*` channel — a no-op when diagnostics isn't installed. Pass `eventEmitter` to also mirror them onto an EventEmitter2-style emitter. See [Integrations](/docs/resilience/integrations).
+</Callout>
+
+## The service
+
+Resolve `ResilienceService` from the container to run policies imperatively and to inspect or reset circuits.
+
+```ts title="app/services/billing_service.ts"
+import { ResilienceService } from '@agora/resilience'
+import { timeout } from '@agora/resilience'
+import app from '@adonisjs/core/services/app'
+
+export default class BillingService {
+  // run a named policy from config…
+  async charge(order: Order) {
+    const resilience = await app.container.make(ResilienceService)
+    return resilience.execute('payments', () => chargeCard(order))
+  }
+
+  // …or an inline one
+  async ping() {
+    const resilience = await app.container.make(ResilienceService)
+    return resilience.execute(timeout(1_000), () => fetch('/health'))
+  }
+
+  // walk an ordered list of targets
+  async notify(message: Message) {
+    const resilience = await app.container.make(ResilienceService)
+    return resilience.failover({
+      targets: this.providers,
+      run: (p) => p.send(message),
+    })
+  }
+
+  // inspect / reset a circuit by key
+  async circuitState() {
+    const resilience = await app.container.make(ResilienceService)
+    return resilience.circuit('payments').snapshot()
+  }
+}
+```
+
+Controllers can resolve the same singleton via constructor injection — AdonisJS's IoC container resolves `ResilienceService` automatically:
+
+```ts title="app/controllers/billing_controller.ts"
+import { inject } from '@adonisjs/core'
+import { ResilienceService } from '@agora/resilience'
+
+@inject()
+export default class BillingController {
+  constructor(private resilience: ResilienceService) {}
+
+  async store({ request }: HttpContext) {
+    return this.resilience.execute('payments', () => chargeCard(request.body()))
+  }
+}
+```
+
+| Method | Purpose |
+| --- | --- |
+| `execute(name \| policy, op)` | run a named policy (resolved from config) or an inline `Policy` |
+| `failover(opts)` | the [`failover`](/docs/resilience/policies#failover) primitive, wired to the service's event sink |
+| `circuit(key).snapshot()` | read the current `CircuitSnapshot` (`status`, `failures`, `openUntil?`) |
+| `circuit(key).reset()` | force a circuit back to closed |
+
+The service also exposes its configured `store` and `sink` as readonly properties, should you need to share the same store with a standalone breaker. `execute('unknown')` throws `Unknown resilience policy "unknown".` if the name isn't registered.

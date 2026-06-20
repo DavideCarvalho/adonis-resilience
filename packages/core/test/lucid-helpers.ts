@@ -2,7 +2,7 @@ import { Emitter } from '@adonisjs/core/events';
 import { AppFactory } from '@adonisjs/core/factories/app';
 import { LoggerFactory } from '@adonisjs/core/factories/logger';
 import { Database } from '@adonisjs/lucid/database';
-import type { LucidDatabase } from '../src/store.js';
+import type { LucidDatabase } from '../src/stores/lucid.js';
 
 /**
  * Build a standalone Lucid `Database` pointed at an in-memory sqlite database — the "using Lucid

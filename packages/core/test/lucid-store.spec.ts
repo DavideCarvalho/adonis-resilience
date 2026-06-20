@@ -1,8 +1,8 @@
 import type { Database } from '@adonisjs/lucid/database';
-import type { BreakerConfig } from '@agora/resilience';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { BreakerConfig } from '../src/index.js';
 import { ensureResilienceSchema, lucidResilienceStore } from '../src/index.js';
-import { asLucidDatabase, makeMemoryDatabase } from './helpers.js';
+import { asLucidDatabase, makeMemoryDatabase } from './lucid-helpers.js';
 
 const cfg: BreakerConfig = { threshold: 3, cooldownMs: 1000 };
 

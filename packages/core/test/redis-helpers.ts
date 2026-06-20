@@ -1,5 +1,5 @@
 import RedisMock from 'ioredis-mock';
-import type { RedisLike } from '../src/store.js';
+import type { RedisLike } from '../src/stores/redis.js';
 
 let seq = 0;
 

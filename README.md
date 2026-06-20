@@ -44,13 +44,30 @@ Per-tenant circuit keys read the tenant from `@agora/context` when present.
 
 ## Circuit stores
 
-- **In-process** (default): `InMemoryResilienceStore` — single process.
-- **SQL**: `SqlResilienceStore` — agnostic over a `SqlDriver`; back it with Lucid,
-  any Postgres/SQLite driver, etc. `CIRCUITS_DDL` ships the schema.
+The circuit store is selected in `config/resilience.ts` with the `stores` factory.
+All three ship in this package; the Lucid/Redis drivers lazily import their peer
+dependency only when selected, so installing one stays optional.
 
-> Dedicated store-adapter packages (`-store-lucid`, `-store-redis`, …) are
-> planned follow-ups; the exported `SqlResilienceStore` + a thin driver already
-> cover distributed persistence today.
+```ts
+import { defineConfig, stores } from '@agora/resilience'
+
+export default defineConfig({
+  default: 'memory',
+  stores: {
+    memory: stores.memory(),                      // in-process (default)
+    lucid: stores.lucid({ connection: 'pg' }),    // SQL via @adonisjs/lucid
+    redis: stores.redis({ connection: 'main' }),  // @adonisjs/redis + ioredis
+  },
+})
+```
+
+- **memory** (default): in-process, single process — no peer dependency.
+- **lucid**: SQL via `@adonisjs/lucid` (Postgres / MySQL / SQLite); table
+  auto-created, or run `CIRCUITS_DDL` from a migration.
+- **redis**: distributed via `@adonisjs/redis` / `ioredis`; atomic Lua, no schema.
+
+Bring your own engine by implementing `SqlDriver` over the exported
+`SqlResilienceStore`, or the four `ResilienceStore` methods directly.
 
 ## License
 

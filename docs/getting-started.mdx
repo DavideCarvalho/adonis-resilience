@@ -1,0 +1,122 @@
+---
+title: Getting Started
+description: Install @agora/resilience, wrap a flaky call with a composed policy, then register named policies in config and reach them through the container.
+icon: Rocket
+---
+
+import { Steps, Step } from 'fumadocs-ui/components/steps';
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+Getting `@agora/resilience` running is three steps: install the package, compose a policy, and (optionally) register named policies in `config/resilience.ts` so you can reach them through the container-resolved `ResilienceService`. You can use the policies entirely standalone — the AdonisJS surfaces are a convenience, not a requirement.
+
+---
+
+## Prerequisites
+
+- **Node.js 20.6+**
+- **AdonisJS 6** (`@adonisjs/core ^6.12`)
+- **TypeScript 5+**
+
+---
+
+<Steps>
+<Step>
+
+## Install
+
+```sh
+node ace add @agora/resilience
+```
+
+`node ace add` installs the package, runs `node ace configure @agora/resilience` for you (registering the provider), and publishes `config/resilience.ts`. To configure an already-installed package, run the configure step directly:
+
+```sh
+node ace configure @agora/resilience
+```
+
+This registers `@agora/resilience/resilience_provider` in `adonisrc.ts` and writes `config/resilience.ts`. `@agora/diagnostics` and `@agora/context` are **optional** — install them only if you want diagnostics emission or tenant-aware breaker keys (see [Integrations](/docs/resilience/integrations)).
+
+</Step>
+<Step>
+
+## Wrap a call with a policy
+
+Every policy exposes `execute(op)`. Compose several with `wrap()` — outermost first — and run your operation inside:
+
+```ts
+import { wrap, timeout, retry, exponential, circuitBreaker, InMemoryResilienceStore } from '@agora/resilience'
+
+const store = new InMemoryResilienceStore()
+
+const charge = wrap(
+  timeout(2_000),                                              // give up after 2s
+  retry({ attempts: 3, backoff: exponential(100) }),          // up to 3 tries, 100ms → 200ms
+  circuitBreaker({ key: 'payments', store, threshold: 5, cooldownMs: 30_000 }),
+)
+
+const result = await charge.execute(() => chargeCard(order))
+```
+
+Your operation receives a `PolicyContext` (`{ signal, attempt }`) if you want it — wire the `AbortSignal` into `fetch`/your client to make timeouts actually cancel work:
+
+```ts
+await charge.execute(({ signal }) => fetch(url, { signal }))
+```
+
+</Step>
+<Step>
+
+## Register named policies (optional)
+
+`config/resilience.ts` (published by `configure`) is where you register reusable, named policies and pick a store. Uncomment and adapt:
+
+```ts title="config/resilience.ts"
+import { defineConfig, stores, wrap, timeout, retry, exponential } from '@agora/resilience'
+
+export default defineConfig({
+  // The circuit-breaker store. `memory` is in-process; see Stores for Lucid / Redis.
+  default: 'memory',
+  stores: {
+    memory: stores.memory(),
+  },
+
+  // Emit diagnostics events on `agora:resilience:*`. Default true.
+  // emit: true,
+
+  // Named, reusable policies resolvable via `resilience.execute('db', op)`.
+  policies: {
+    payments: () => wrap(timeout(2_000), retry({ attempts: 3, backoff: exponential(100) })),
+  },
+})
+```
+
+The provider binds a singleton `ResilienceService` built lazily from this config. Resolve it from the container and run a named policy:
+
+```ts title="app/services/billing_service.ts"
+import { ResilienceService } from '@agora/resilience'
+import app from '@adonisjs/core/services/app'
+
+export default class BillingService {
+  async charge(order: Order) {
+    const resilience = await app.container.make(ResilienceService)
+    return resilience.execute('payments', () => chargeCard(order))
+  }
+}
+```
+
+</Step>
+</Steps>
+
+<Callout type="info">
+By default the service uses the in-memory store and emits diagnostics events. To share circuit state across instances, point `default` at a Lucid or Redis store built with the `stores` factory — see [Stores](/docs/resilience/stores). To turn emission off, pass `emit: false`.
+</Callout>
+
+## Where to go next
+
+<Cards>
+  <Card title="Policies" href="/docs/resilience/policies" description="timeout, retry, circuit breaker, wrap and failover in depth — plus the typed errors." />
+  <Card title="Service & config" href="/docs/resilience/adonis" description="config/resilience.ts, the provider, and the ResilienceService API." />
+  <Card title="Stores" href="/docs/resilience/stores" description="Pick a Lucid / Redis store in config, plus the ResilienceStore contract." />
+  <Card title="Testing" href="/docs/resilience/testing" description="Drive time deterministically with FakeClock; validate a custom store." />
+</Cards>

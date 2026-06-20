@@ -1,0 +1,54 @@
+---
+title: Resilience
+description: Composable resilience policies for AdonisJS — timeout, retry, circuit breaker and failover, with a pluggable, distributed circuit-breaker store.
+icon: Zap
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+import { Cards, Card } from 'fumadocs-ui/components/card';
+
+**`@agora/resilience`** is an AdonisJS-native fault-tolerance toolkit — composable **timeout**, **retry**, **circuit breaker** and **failover** policies, with a pluggable, distributed circuit-breaker store. Think *cockatiel for AdonisJS*, wired into the ecosystem's conventions ([diagnostics](/docs/diagnostics), [context](/docs/context), Telescope) through soft, optional integrations.
+
+<Callout type="info" title="Alpha">
+Published as alpha at `0.1.0`. The API here matches the current source. Pin a version in production.
+</Callout>
+
+## Compose policies, outer to inner
+
+Each policy is a small object with an `execute(op)` method. `wrap()` composes them — the **first** argument is the outermost layer, the last is closest to your operation:
+
+```ts
+import { wrap, timeout, retry, exponential, circuitBreaker, InMemoryResilienceStore } from '@agora/resilience'
+
+const store = new InMemoryResilienceStore()
+
+const policy = wrap(
+  timeout(2_000),
+  retry({ attempts: 3, backoff: exponential(100) }),
+  circuitBreaker({ key: 'payments', store, threshold: 5, cooldownMs: 30_000 }),
+)
+
+await policy.execute(() => chargeCard(order)) // timeout → retry → breaker → chargeCard
+```
+
+The policies are framework-agnostic — you can use them standalone anywhere in your codebase. The AdonisJS surface (a provider, a `config/resilience.ts`, and a container-resolved `ResilienceService`) is a convenience layer on top.
+
+## Three ways to use it
+
+<Cards>
+  <Card title="Programmatic policies" href="/docs/resilience/policies" description="Build and compose timeout / retry / circuit-breaker / failover by hand." />
+  <Card title="Service & config" href="/docs/resilience/adonis" description="Register named policies in config/resilience.ts and run them through the container-resolved ResilienceService." />
+  <Card title="Distributed stores" href="/docs/resilience/stores" description="Pick a memory / Lucid (SQL) / Redis store in config — one ResilienceStore contract, fleet-wide." />
+</Cards>
+
+## Wired into the ecosystem
+
+State transitions (circuit opened/closed/half-open, short-circuited, failover) emit over [`@agora/diagnostics`](/docs/diagnostics) on the `agora:resilience:*` channel — so [Telescope](/docs/telescope) or any subscriber can observe them. An optional EventEmitter mirror lets you react in-app, and [`@agora/context`](/docs/context) makes breaker keys tenant-aware automatically. Every integration is **soft-detected** through a global slot, so there is no hard dependency between packages. See [Integrations](/docs/resilience/integrations).
+
+## Install
+
+```sh
+node ace add @agora/resilience
+```
+
+`@adonisjs/core` is a peer dependency; `@agora/diagnostics` and `@agora/context` are optional, soft-detected ones. Head to [Getting Started](/docs/resilience/getting-started).

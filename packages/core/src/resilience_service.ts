@@ -7,10 +7,21 @@ import { type EventEmitterLike, eventEmitterSink } from './integration/event-emi
 import { type FailoverOptions, failover } from './policies/failover.js';
 import type { Operation, Policy } from './policy.js';
 
-/** Options for {@link ResilienceService} — the shape of `config/resilience.ts`. */
+/** Options for {@link ResilienceService} — the runtime shape built from `config/resilience.ts`. */
 export interface ResilienceServiceOptions {
-  /** Circuit-breaker store. Defaults to an in-process {@link InMemoryResilienceStore}. */
+  /**
+   * An explicit circuit-breaker store. Takes precedence over `stores`/`defaultStore`. Defaults to an
+   * in-process {@link InMemoryResilienceStore} when neither is provided.
+   */
   store?: ResilienceStore;
+  /**
+   * Resolved named circuit-breaker stores. Built by the provider from `config.stores`
+   * (a {@link import('./stores/factory.js').StoreProvider} map). Resolve one by name with
+   * {@link ResilienceService.circuitStore}.
+   */
+  stores?: Record<string, ResilienceStore>;
+  /** Name of the default store (a key of `stores`) returned by {@link ResilienceService.store}. */
+  defaultStore?: string;
   /** Named, reusable policy factories resolvable by name in {@link ResilienceService.execute}. */
   policies?: Record<string, () => Policy>;
   /** Emit diagnostics events on `agora:resilience:*`. Default true. */
@@ -20,7 +31,7 @@ export interface ResilienceServiceOptions {
 }
 
 /**
- * The container-resolved entry point for resilience. Holds the configured store
+ * The container-resolved entry point for resilience. Holds the configured store(s)
  * and event sink, runs operations through named or ad-hoc policies, and exposes
  * failover + per-circuit inspection/reset.
  *
@@ -32,10 +43,15 @@ export interface ResilienceServiceOptions {
 export class ResilienceService {
   readonly sink: EventSink;
   readonly store: ResilienceStore;
+  private readonly stores: Record<string, ResilienceStore>;
   private readonly policies: Record<string, () => Policy>;
 
   constructor(options: ResilienceServiceOptions = {}) {
-    this.store = options.store ?? new InMemoryResilienceStore();
+    this.stores = options.stores ?? {};
+    this.store =
+      options.store ??
+      (options.defaultStore ? this.requireStore(options.defaultStore) : undefined) ??
+      new InMemoryResilienceStore();
     const base = options.emit === false ? noopSink : diagnosticsSink();
     this.sink = options.eventEmitter
       ? combineSinks(base, eventEmitterSink(options.eventEmitter))
@@ -54,13 +70,28 @@ export class ResilienceService {
     return failover({ onEvent: this.sink, ...opts });
   }
 
-  /** Inspect or reset a single circuit by key. */
+  /**
+   * Resolve a circuit-breaker store. With no argument returns the default {@link store}; with a name
+   * returns the configured store under that key (throws if unknown). Useful for wiring an explicit
+   * `circuitBreaker({ store: resilience.circuitStore('redis') })`.
+   */
+  circuitStore(name?: string): ResilienceStore {
+    return name ? this.requireStore(name) : this.store;
+  }
+
+  /** Inspect or reset a single circuit by key, on the default store. */
   circuit(key: string) {
     const store = this.store;
     return {
       snapshot: (): Promise<CircuitSnapshot> => store.snapshot(key),
       reset: (): Promise<void> => store.reset(key),
     };
+  }
+
+  private requireStore(name: string): ResilienceStore {
+    const store = this.stores[name];
+    if (!store) throw new Error(`Unknown resilience store "${name}".`);
+    return store;
   }
 
   private resolve(name: string): Policy {
