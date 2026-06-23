@@ -13,6 +13,7 @@ export { rootContext } from './policy.js';
 export { timeout } from './policies/timeout.js';
 export { type Backoff, exponential, retry } from './policies/retry.js';
 export { wrap } from './policies/wrap.js';
+export { withResilience } from './decorator.js';
 export { type CircuitBreakerOptions, circuitBreaker } from './policies/circuit-breaker.js';
 export { type FailoverOptions, failover } from './policies/failover.js';
 export type { ResilienceStore } from './breaker/store.js';

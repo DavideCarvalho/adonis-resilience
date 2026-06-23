@@ -1,6 +1,15 @@
 {
   "title": "Resilience",
-  "pages": ["index", "getting-started", "policies", "adonis", "stores", "integrations", "testing"],
+  "pages": [
+    "index",
+    "getting-started",
+    "policies",
+    "decorator",
+    "adonis",
+    "stores",
+    "integrations",
+    "testing"
+  ],
   "root": true,
   "description": "Composable timeout, retry, circuit-breaker and failover policies — with a pluggable, distributed breaker store.",
   "icon": "Zap"

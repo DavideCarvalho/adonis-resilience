@@ -1,0 +1,74 @@
+---
+title: Declarative usage
+description: Wrap a class method with timeout, retry and circuit-breaker policies declaratively using the @withResilience decorator — the ergonomic counterpart to wrap(...).
+icon: Wand
+---
+
+import { Callout } from 'fumadocs-ui/components/callout';
+
+`@withResilience(...policies)` is a TypeScript method decorator that runs the decorated method through a composed resilience pipeline. It's the declarative, ergonomic counterpart to calling `service.execute(wrap(...policies))` by hand — same policies, same composition, less boilerplate.
+
+```ts
+import { withResilience, timeout, retry, circuitBreaker, InMemoryResilienceStore } from '@agora/resilience'
+
+const store = new InMemoryResilienceStore()
+
+class PaymentClient {
+  @withResilience(
+    timeout(1_000),                                    // outermost
+    retry({ attempts: 3 }),                            // retries the timed-out call
+    circuitBreaker({ key: 'pay', store, threshold: 5, cooldownMs: 30_000 }) // innermost
+  )
+  async charge(amount: number): Promise<Receipt> {
+    return this.http.post('/charge', { amount })
+  }
+}
+```
+
+Calling `charge()` now executes `timeout( retry( circuitBreaker( body ) ) )`, exactly as `wrap(timeout(1_000), retry({ attempts: 3 }), circuitBreaker({ … }))` would.
+
+## Composition order
+
+The argument order **mirrors [`wrap`](/docs/resilience/policies#wrap--compose-policies)**: the **first policy is the outermost** layer and the **last sits closest to the method body**. Read it top-down — the timeout bounds the *entire* retry loop; the breaker wraps each individual attempt.
+
+<Callout type="info">
+Need a per-attempt deadline instead? Put `timeout` *after* `retry` in the list — `@withResilience(retry({ attempts: 3 }), timeout(1_000))` gives each try its own 1s budget.
+</Callout>
+
+## The method shape
+
+The decorator preserves `this`, all arguments, and the return type:
+
+```ts
+class Greeter {
+  greeting = 'hello'
+
+  @withResilience(retry({ attempts: 2 }))
+  async greet(name: string): Promise<string> {
+    return `${this.greeting} ${name}` // `this` and args are intact
+  }
+}
+```
+
+Only **async methods** can be decorated — the policies are promise-based, so the method must return a `Promise`.
+
+## Providing a store
+
+Because a method decorator runs at class-definition time, there's no per-request container to resolve a circuit-breaker store from. Pass an explicit `store` to any [`circuitBreaker`](/docs/resilience/policies#circuitbreaker) policy:
+
+```ts
+import { circuitBreaker, lucidResilienceStore } from '@agora/resilience'
+
+const store = lucidResilienceStore(/* … */)
+
+class InventoryClient {
+  @withResilience(circuitBreaker({ key: 'inventory', store, threshold: 5, cooldownMs: 30_000 }))
+  async check(sku: string): Promise<Stock> { /* … */ }
+}
+```
+
+Share a single store instance across every breaker that should trip together — including the one wired into [`config/resilience.ts`](/docs/resilience/adonis).
+
+## When to reach for `wrap` instead
+
+`@withResilience` shines for *fixed* policies attached to a method. When you need policies built per-request (e.g. a tenant-scoped breaker key) or resolved from the container, call [`ResilienceService.execute`](/docs/resilience/adonis) with `wrap(...)` directly. The two are interchangeable — the decorator is sugar over the same engine.
