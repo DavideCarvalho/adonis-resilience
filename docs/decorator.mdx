@@ -9,7 +9,7 @@ import { Callout } from 'fumadocs-ui/components/callout';
 `@withResilience(...policies)` is a TypeScript method decorator that runs the decorated method through a composed resilience pipeline. It's the declarative, ergonomic counterpart to calling `service.execute(wrap(...policies))` by hand — same policies, same composition, less boilerplate.
 
 ```ts
-import { withResilience, timeout, retry, circuitBreaker, InMemoryResilienceStore } from '@agora/resilience'
+import { withResilience, timeout, retry, circuitBreaker, InMemoryResilienceStore } from '@adonis-agora/resilience'
 
 const store = new InMemoryResilienceStore()
 
@@ -57,7 +57,7 @@ Only **async methods** can be decorated — the policies are promise-based, so t
 Because a method decorator runs at class-definition time, there's no per-request container to resolve a circuit-breaker store from. Pass an explicit `store` to any [`circuitBreaker`](/docs/resilience/policies#circuitbreaker) policy:
 
 ```ts
-import { circuitBreaker, lucidResilienceStore } from '@agora/resilience'
+import { circuitBreaker, lucidResilienceStore } from '@adonis-agora/resilience'
 
 const store = lucidResilienceStore(/* … */)
 

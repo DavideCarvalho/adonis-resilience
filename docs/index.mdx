@@ -7,7 +7,7 @@ icon: Zap
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Cards, Card } from 'fumadocs-ui/components/card';
 
-**`@agora/resilience`** is an AdonisJS-native fault-tolerance toolkit — composable **timeout**, **retry**, **circuit breaker** and **failover** policies, with a pluggable, distributed circuit-breaker store. Think *cockatiel for AdonisJS*, wired into the ecosystem's conventions ([diagnostics](/docs/diagnostics), [context](/docs/context), Telescope) through soft, optional integrations.
+**`@adonis-agora/resilience`** is an AdonisJS-native fault-tolerance toolkit — composable **timeout**, **retry**, **circuit breaker** and **failover** policies, with a pluggable, distributed circuit-breaker store. Think *cockatiel for AdonisJS*, wired into the ecosystem's conventions ([diagnostics](/docs/diagnostics), [context](/docs/context), Telescope) through soft, optional integrations.
 
 <Callout type="info" title="Alpha">
 Published as alpha at `0.1.0`. The API here matches the current source. Pin a version in production.
@@ -18,7 +18,7 @@ Published as alpha at `0.1.0`. The API here matches the current source. Pin a ve
 Each policy is a small object with an `execute(op)` method. `wrap()` composes them — the **first** argument is the outermost layer, the last is closest to your operation:
 
 ```ts
-import { wrap, timeout, retry, exponential, circuitBreaker, InMemoryResilienceStore } from '@agora/resilience'
+import { wrap, timeout, retry, exponential, circuitBreaker, InMemoryResilienceStore } from '@adonis-agora/resilience'
 
 const store = new InMemoryResilienceStore()
 
@@ -43,12 +43,12 @@ The policies are framework-agnostic — you can use them standalone anywhere in 
 
 ## Wired into the ecosystem
 
-State transitions (circuit opened/closed/half-open, short-circuited, failover) emit over [`@agora/diagnostics`](/docs/diagnostics) on the `agora:resilience:*` channel — so [Telescope](/docs/telescope) or any subscriber can observe them. An optional EventEmitter mirror lets you react in-app, and [`@agora/context`](/docs/context) makes breaker keys tenant-aware automatically. Every integration is **soft-detected** through a global slot, so there is no hard dependency between packages. See [Integrations](/docs/resilience/integrations).
+State transitions (circuit opened/closed/half-open, short-circuited, failover) emit over [`@adonis-agora/diagnostics`](/docs/diagnostics) on the `agora:resilience:*` channel — so [Telescope](/docs/telescope) or any subscriber can observe them. An optional EventEmitter mirror lets you react in-app, and [`@adonis-agora/context`](/docs/context) makes breaker keys tenant-aware automatically. Every integration is **soft-detected** through a global slot, so there is no hard dependency between packages. See [Integrations](/docs/resilience/integrations).
 
 ## Install
 
 ```sh
-node ace add @agora/resilience
+node ace add @adonis-agora/resilience
 ```
 
-`@adonisjs/core` is a peer dependency; `@agora/diagnostics` and `@agora/context` are optional, soft-detected ones. Head to [Getting Started](/docs/resilience/getting-started).
+`@adonisjs/core` is a peer dependency; `@adonis-agora/diagnostics` and `@adonis-agora/context` are optional, soft-detected ones. Head to [Getting Started](/docs/resilience/getting-started).

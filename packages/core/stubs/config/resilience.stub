@@ -1,7 +1,7 @@
 {{{
   exports({ to: app.configPath('resilience.ts') })
 }}}
-import { defineConfig, stores } from '@agora/resilience'
+import { defineConfig, stores } from '@adonis-agora/resilience'
 
 export default defineConfig({
   /**

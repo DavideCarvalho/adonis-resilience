@@ -26,7 +26,7 @@ describe('diagnosticsSink', () => {
     expect(calls[0].payload.key).toBe('db');
   });
 
-  it('no-ops when @agora/diagnostics is not installed', () => {
+  it('no-ops when @adonis-agora/diagnostics is not installed', () => {
     const event = { type: 'circuit-opened', key: 'db', at: 0 } as unknown as ResilienceEvent;
     expect(() => diagnosticsSink()(event)).not.toThrow();
   });

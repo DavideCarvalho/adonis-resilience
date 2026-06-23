@@ -1,6 +1,6 @@
 ---
 title: Integrations
-description: Emit state transitions over @agora/diagnostics (for Telescope), mirror them onto an EventEmitter, and make breaker keys tenant-aware through @agora/context — all soft-detected and optional.
+description: Emit state transitions over @adonis-agora/diagnostics (for Telescope), mirror them onto an EventEmitter, and make breaker keys tenant-aware through @adonis-agora/context — all soft-detected and optional.
 icon: Activity
 ---
 
@@ -31,7 +31,7 @@ In the current core, the **circuit breaker** emits `circuit-opened`, `circuit-cl
 Pass `onEvent` to any policy, or let the `ResilienceService` wire the sinks for you. Combine several with `combineSinks` — a misbehaving sink can't break the others or the policy:
 
 ```ts
-import { circuitBreaker, combineSinks, diagnosticsSink, eventEmitterSink } from '@agora/resilience'
+import { circuitBreaker, combineSinks, diagnosticsSink, eventEmitterSink } from '@adonis-agora/resilience'
 
 circuitBreaker({
   key: 'payments',
@@ -44,10 +44,10 @@ circuitBreaker({
 
 ## Diagnostics
 
-`diagnosticsSink()` republishes each event onto [`@agora/diagnostics`](/docs/diagnostics) as **`agora:resilience:<type>`** — so [Telescope](/docs/telescope) or any `onDiagnostic('resilience', …)` subscriber can observe circuit and failover activity. It reads the diagnostics `emit` function through the global slot `Symbol.for('@agora/diagnostics:emit')`, so it's a **no-op** when diagnostics isn't installed and free when nothing is subscribed.
+`diagnosticsSink()` republishes each event onto [`@adonis-agora/diagnostics`](/docs/diagnostics) as **`agora:resilience:<type>`** — so [Telescope](/docs/telescope) or any `onDiagnostic('resilience', …)` subscriber can observe circuit and failover activity. It reads the diagnostics `emit` function through the global slot `Symbol.for('@agora/diagnostics:emit')`, so it's a **no-op** when diagnostics isn't installed and free when nothing is subscribed.
 
 ```ts title="config/resilience.ts"
-import { defineConfig } from '@agora/resilience'
+import { defineConfig } from '@adonis-agora/resilience'
 
 export default defineConfig({ emit: true }) // default — the service installs diagnosticsSink for you
 ```
@@ -63,7 +63,7 @@ This is how circuit opens / failovers show up in [Telescope](/docs/telescope): r
 To react to transitions **inside your app** — invalidate a cache when a circuit opens, page on repeated failovers — mirror events onto an EventEmitter via the config's `eventEmitter`:
 
 ```ts title="config/resilience.ts"
-import { defineConfig } from '@agora/resilience'
+import { defineConfig } from '@adonis-agora/resilience'
 import emitter from '@adonisjs/core/services/emitter'
 
 export default defineConfig({ eventEmitter: emitter as any })
@@ -83,10 +83,10 @@ Event names are derived by `resilienceEventName(type)` — dots replace dashes, 
 
 ## Tenant-aware circuit keys
 
-In a multi-tenant app you usually want a circuit **per tenant** — one tenant's failing provider shouldn't trip the breaker for everyone. `tenantSuffix()` reads the current tenant id from [`@agora/context`](/docs/context) (via the shared slot `Symbol.for('@agora/context:accessor')`, returning `undefined` when context isn't present), so you can fold it into the key:
+In a multi-tenant app you usually want a circuit **per tenant** — one tenant's failing provider shouldn't trip the breaker for everyone. `tenantSuffix()` reads the current tenant id from [`@adonis-agora/context`](/docs/context) (via the shared slot `Symbol.for('@agora/context:accessor')`, returning `undefined` when context isn't present), so you can fold it into the key:
 
 ```ts
-import { circuitBreaker, tenantSuffix } from '@agora/resilience'
+import { circuitBreaker, tenantSuffix } from '@adonis-agora/resilience'
 
 circuitBreaker({
   key: `payments:${tenantSuffix() ?? 'global'}`,

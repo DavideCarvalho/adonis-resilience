@@ -28,7 +28,7 @@ interface ResilienceStore {
 All three stores ship in the core package and are selected in `config/resilience.ts` with the `stores` factory. Pick a `default` and list the stores you use under `stores`:
 
 ```ts title="config/resilience.ts"
-import { defineConfig, stores } from '@agora/resilience'
+import { defineConfig, stores } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'memory',
@@ -43,7 +43,7 @@ export default defineConfig({
 Each `stores.*` call returns a lazy thunk — listing it costs nothing. The provider builds only the configured stores at boot, and the Lucid / Redis drivers **dynamically import their peer dependency** (`@adonisjs/lucid`, `@adonisjs/redis`) only when built. So you install just the driver you point `default` at; the others stay optional.
 
 <Callout type="info">
-`@adonisjs/lucid`, `@adonisjs/redis` and `ioredis` are **optional peer dependencies** of `@agora/resilience`. Install the one your selected store needs — e.g. `npm i @adonisjs/redis ioredis` for `stores.redis()`.
+`@adonisjs/lucid`, `@adonisjs/redis` and `ioredis` are **optional peer dependencies** of `@adonis-agora/resilience`. Install the one your selected store needs — e.g. `npm i @adonisjs/redis ioredis` for `stores.redis()`.
 </Callout>
 
 ## In-memory (default)
@@ -51,7 +51,7 @@ Each `stores.*` call returns a lazy thunk — listing it costs nothing. The prov
 `stores.memory()` keeps circuit state in the process — each instance trips its own breaker. JavaScript's single-threaded run-to-completion model gives it atomicity for free, and it needs no peer dependency. It is the default the published config ships with.
 
 ```ts title="config/resilience.ts"
-import { defineConfig, stores } from '@agora/resilience'
+import { defineConfig, stores } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'memory',
@@ -73,7 +73,7 @@ npm i @adonisjs/lucid
 `stores.lucid()` builds a thin SQL driver over the Lucid connection and feeds the agnostic `SqlResilienceStore`, so all breaker semantics live in core:
 
 ```ts title="config/resilience.ts"
-import { defineConfig, stores } from '@agora/resilience'
+import { defineConfig, stores } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'lucid',
@@ -104,7 +104,7 @@ npm i @adonisjs/redis ioredis
 `stores.redis()` resolves the named `@adonisjs/redis` connection and runs entirely on its underlying ioredis client:
 
 ```ts title="config/resilience.ts"
-import { defineConfig, stores } from '@agora/resilience'
+import { defineConfig, stores } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'redis',
@@ -167,7 +167,7 @@ The columns match `CIRCUITS_DDL` — `key`, `status`, `failures`, `open_until`, 
 ### Skip the runtime CREATE TABLE
 
 ```ts title="config/resilience.ts"
-import { defineConfig, stores } from '@agora/resilience'
+import { defineConfig, stores } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'lucid',
@@ -185,7 +185,7 @@ export default defineConfig({
 Under the hood the Lucid store is just a thin `SqlDriver` over the agnostic `SqlResilienceStore` exported from core. To back the breaker with any other SQL driver, implement `SqlDriver` and hand it to `SqlResilienceStore`, then wire it as an explicit `store`:
 
 ```ts
-import { SqlResilienceStore, type SqlDriver } from '@agora/resilience'
+import { SqlResilienceStore, type SqlDriver } from '@adonis-agora/resilience'
 
 const driver: SqlDriver = {
   placeholders: 'numbered',                 // '$1, $2' (Postgres) or 'positional' for '?'

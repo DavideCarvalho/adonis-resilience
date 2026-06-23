@@ -4,7 +4,7 @@ import type { ResilienceConfig } from '../src/define_config.js';
 import { ResilienceService } from '../src/resilience_service.js';
 
 /**
- * Wires `@agora/resilience` into the AdonisJS application: binds a singleton
+ * Wires `@adonis-agora/resilience` into the AdonisJS application: binds a singleton
  * {@link ResilienceService} built from `config/resilience.ts`.
  *
  * ```ts
@@ -36,7 +36,7 @@ export default class ResilienceProvider {
 
       if (defaultStore && !providers?.[defaultStore]) {
         throw new Error(
-          `@agora/resilience: config.default is "${defaultStore}", but config.stores.${defaultStore} is not defined`,
+          `@adonis-agora/resilience: config.default is "${defaultStore}", but config.stores.${defaultStore} is not defined`,
         );
       }
 

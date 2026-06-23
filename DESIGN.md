@@ -1,4 +1,4 @@
-# `@agora/resilience` — DESIGN
+# `@adonis-agora/resilience` — DESIGN
 
 > Port of `@dudousxd/nestjs-resilience` (aviary) to AdonisJS (Agora).
 
@@ -33,7 +33,7 @@ Isso deixa cada repo buildar/testar isolado, sem precisar publicar os outros.
 ## 4. Wiring Adonis
 
 - **Provider**: binda `ResilienceService` como singleton (factory lazy lê o config).
-- **`node ace configure @agora/resilience`**: registra o provider + publica
+- **`node ace configure @adonis-agora/resilience`**: registra o provider + publica
   `config/resilience.ts`.
 
 ## 5. Stores

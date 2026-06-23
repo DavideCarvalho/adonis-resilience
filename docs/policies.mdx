@@ -26,7 +26,7 @@ Every built-in policy is a factory that returns one. They share the same shape, 
 `wrap(...policies)` builds one policy from many. The **first argument is the outermost** layer; the last sits closest to your operation:
 
 ```ts
-import { wrap, timeout, retry, circuitBreaker } from '@agora/resilience'
+import { wrap, timeout, retry, circuitBreaker } from '@adonis-agora/resilience'
 
 const policy = wrap(timeout(2_000), retry({ attempts: 3 }), circuitBreaker({ /* … */ }))
 // execution order: timeout( retry( circuitBreaker( op ) ) )
@@ -43,7 +43,7 @@ timeout(ms: number, opts?: { clock?: Clock }): Policy
 Rejects with a **`TimeoutError`** if the operation hasn't settled within `ms`, and aborts the `PolicyContext.signal` so cooperating work can stop:
 
 ```ts
-import { timeout, TimeoutError } from '@agora/resilience'
+import { timeout, TimeoutError } from '@adonis-agora/resilience'
 
 try {
   await timeout(5_000).execute(({ signal }) => fetch(url, { signal }))
@@ -69,7 +69,7 @@ Re-runs the operation up to `attempts` times, waiting `backoff(attempt)` millise
 `Backoff` is just `(attempt: number) => number`. The package ships `exponential`:
 
 ```ts
-import { retry, exponential } from '@agora/resilience'
+import { retry, exponential } from '@adonis-agora/resilience'
 
 retry({ attempts: 4, backoff: exponential(100) })
 // waits 100ms, 200ms, 400ms between the four attempts (factor defaults to 2)
@@ -100,7 +100,7 @@ circuitBreaker(opts: {
 Tracks failures per `key` in a [store](/docs/resilience/stores). After `threshold` failures it **opens** — every call fails fast with a **`BrokenCircuitError`** instead of hammering a dead dependency. After `cooldownMs` it goes **half-open** and lets a single probe through; a success **closes** it, a failure re-opens it.
 
 ```ts
-import { circuitBreaker, BrokenCircuitError, InMemoryResilienceStore } from '@agora/resilience'
+import { circuitBreaker, BrokenCircuitError, InMemoryResilienceStore } from '@adonis-agora/resilience'
 
 const breaker = circuitBreaker({
   key: 'inventory-api',
@@ -141,7 +141,7 @@ failover<TTarget, R>(opts: {
 Unlike the other policies, `failover` runs immediately and returns the result — it's a function, not a `Policy`. Give each target its own breaker + timeout so a known-dead target is skipped instantly:
 
 ```ts
-import { failover, wrap, timeout, circuitBreaker, InMemoryResilienceStore } from '@agora/resilience'
+import { failover, wrap, timeout, circuitBreaker, InMemoryResilienceStore } from '@adonis-agora/resilience'
 
 const store = new InMemoryResilienceStore()
 

@@ -14,7 +14,7 @@ NestJS used `@Timeout` / `@Retry` / `@CircuitBreaker` decorators plus a provider
 
 ## The provider
 
-`node ace configure @agora/resilience` registers `@agora/resilience/resilience_provider`, which binds `ResilienceService` as a **singleton**, built lazily from `config/resilience.ts`:
+`node ace configure @adonis-agora/resilience` registers `@adonis-agora/resilience/resilience_provider`, which binds `ResilienceService` as a **singleton**, built lazily from `config/resilience.ts`:
 
 ```ts title="providers/resilience_provider.ts (published)"
 export default class ResilienceProvider {
@@ -45,7 +45,7 @@ interface ResilienceConfig {
 ```
 
 ```ts title="config/resilience.ts"
-import { defineConfig, stores, wrap, timeout, retry, exponential } from '@agora/resilience'
+import { defineConfig, stores, wrap, timeout, retry, exponential } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'memory',
@@ -61,7 +61,7 @@ export default defineConfig({
 For a distributed store, point `default` at a Lucid or Redis store built with the `stores` factory — each lazily imports its peer dependency only when selected:
 
 ```ts title="config/resilience.ts"
-import { defineConfig, stores, wrap, timeout, retry, exponential } from '@agora/resilience'
+import { defineConfig, stores, wrap, timeout, retry, exponential } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'redis',
@@ -78,7 +78,7 @@ export default defineConfig({
 See [Stores](/docs/resilience/stores) for the Lucid and Redis drivers and migrations.
 
 <Callout type="info">
-`emit: true` (default) routes every state transition to [`@agora/diagnostics`](/docs/diagnostics) on the `agora:resilience:*` channel — a no-op when diagnostics isn't installed. Pass `eventEmitter` to also mirror them onto an EventEmitter2-style emitter. See [Integrations](/docs/resilience/integrations).
+`emit: true` (default) routes every state transition to [`@adonis-agora/diagnostics`](/docs/diagnostics) on the `agora:resilience:*` channel — a no-op when diagnostics isn't installed. Pass `eventEmitter` to also mirror them onto an EventEmitter2-style emitter. See [Integrations](/docs/resilience/integrations).
 </Callout>
 
 ## The service
@@ -86,8 +86,8 @@ See [Stores](/docs/resilience/stores) for the Lucid and Redis drivers and migrat
 Resolve `ResilienceService` from the container to run policies imperatively and to inspect or reset circuits.
 
 ```ts title="app/services/billing_service.ts"
-import { ResilienceService } from '@agora/resilience'
-import { timeout } from '@agora/resilience'
+import { ResilienceService } from '@adonis-agora/resilience'
+import { timeout } from '@adonis-agora/resilience'
 import app from '@adonisjs/core/services/app'
 
 export default class BillingService {
@@ -124,7 +124,7 @@ Controllers can resolve the same singleton via constructor injection — AdonisJ
 
 ```ts title="app/controllers/billing_controller.ts"
 import { inject } from '@adonisjs/core'
-import { ResilienceService } from '@agora/resilience'
+import { ResilienceService } from '@adonis-agora/resilience'
 
 @inject()
 export default class BillingController {

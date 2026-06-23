@@ -21,7 +21,7 @@ interface Clock {
 `timeout`, `retry`, and the stores (`InMemoryResilienceStore`, the Lucid/Redis adapters, `SqlResilienceStore`) all take `{ clock }`. Pass a `FakeClock` and call `advance(ms)` to fire timers instantly — it fires due timers in scheduled order as you advance:
 
 ```ts
-import { FakeClock, timeout, TimeoutError } from '@agora/resilience'
+import { FakeClock, timeout, TimeoutError } from '@adonis-agora/resilience'
 
 it('times out without real waiting', async () => {
   const clock = new FakeClock()
@@ -37,7 +37,7 @@ it('times out without real waiting', async () => {
 The same trick drives a breaker through its cooldown deterministically — give the in-memory store the same clock:
 
 ```ts
-import { FakeClock, InMemoryResilienceStore, circuitBreaker, BrokenCircuitError } from '@agora/resilience'
+import { FakeClock, InMemoryResilienceStore, circuitBreaker, BrokenCircuitError } from '@adonis-agora/resilience'
 
 const clock = new FakeClock()
 const store = new InMemoryResilienceStore(clock)
@@ -69,7 +69,7 @@ expect((await store.snapshot('svc')).failures).toBe(0)
 Writing your own `ResilienceStore` (or wiring a new engine)? The package exposes the **same contract** every built-in adapter passes, from the dedicated `testing` subpath — kept separate so the production barrel never pulls in your test runner:
 
 ```ts title="my-store.contract.spec.ts"
-import { runResilienceStoreContract } from '@agora/resilience/testing'
+import { runResilienceStoreContract } from '@adonis-agora/resilience/testing'
 import { MyResilienceStore } from './my-store.js'
 
 runResilienceStoreContract('MyResilienceStore', (clock) => new MyResilienceStore({ clock }))

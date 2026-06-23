@@ -1,4 +1,4 @@
-# `@agora/resilience`
+# `@adonis-agora/resilience`
 
 > Resilience policies for **AdonisJS** — timeout, retry, circuit breaker, and
 > ordered failover — with pluggable circuit stores. Part of the
@@ -7,8 +7,8 @@
 ## Install
 
 ```sh
-npm i @agora/resilience
-node ace configure @agora/resilience
+npm i @adonis-agora/resilience
+node ace configure @adonis-agora/resilience
 ```
 
 ## Use
@@ -16,7 +16,7 @@ node ace configure @agora/resilience
 Compose policies as plain functions, or register named ones in `config/resilience.ts`:
 
 ```ts
-import { wrap, timeout, retry, exponential, circuitBreaker } from '@agora/resilience'
+import { wrap, timeout, retry, exponential, circuitBreaker } from '@adonis-agora/resilience'
 
 const policy = wrap(
   timeout(2000),
@@ -29,7 +29,7 @@ const result = await policy.execute(() => chargeCard())
 Or through the container-resolved service:
 
 ```ts
-import { ResilienceService } from '@agora/resilience'
+import { ResilienceService } from '@adonis-agora/resilience'
 
 const resilience = await app.container.make(ResilienceService)
 await resilience.execute('db', () => query())              // named policy
@@ -37,10 +37,10 @@ await resilience.failover({ targets, attempt })            // ordered failover
 await resilience.circuit('payments').snapshot()            // inspect / reset
 ```
 
-Events publish on `agora:resilience:*` via `@agora/diagnostics` when installed
+Events publish on `agora:resilience:*` via `@adonis-agora/diagnostics` when installed
 (read structurally through a global slot — no hard dependency), so a Telescope
 watcher records every circuit open / failover / retry with `traceId` correlation.
-Per-tenant circuit keys read the tenant from `@agora/context` when present.
+Per-tenant circuit keys read the tenant from `@adonis-agora/context` when present.
 
 ## Circuit stores
 
@@ -49,7 +49,7 @@ All three ship in this package; the Lucid/Redis drivers lazily import their peer
 dependency only when selected, so installing one stays optional.
 
 ```ts
-import { defineConfig, stores } from '@agora/resilience'
+import { defineConfig, stores } from '@adonis-agora/resilience'
 
 export default defineConfig({
   default: 'memory',

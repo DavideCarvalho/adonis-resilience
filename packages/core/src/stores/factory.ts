@@ -44,7 +44,7 @@ export interface RedisStoreConfig extends RedisResilienceStoreOptions {
  * The store factory namespace used in `config/resilience.ts`:
  *
  * ```ts
- * import { defineConfig, stores } from '@agora/resilience'
+ * import { defineConfig, stores } from '@adonis-agora/resilience'
  *
  * export default defineConfig({
  *   default: 'memory',
